@@ -1,0 +1,55 @@
+databases:
+    - name: docedit-db
+      plan: free
+      databaseName: docedit
+      user: docedit
+
+services:
+    - type: web
+      name: docedit
+      runtime: docker
+      dockerfilePath: ./Dockerfile
+      plan: free
+      healthCheckPath: /up
+      envVars:
+          - key: APP_NAME
+            value: "Document Editor"
+          - key: APP_ENV
+            value: production
+          # Not auto-generated: Laravel needs the exact `base64:<32 random
+          # bytes>` format, which a generic Render-generated value isn't
+          # guaranteed to match. Generate it yourself locally with
+          # `php artisan key:generate --show` and paste it in the dashboard
+          # after the Blueprint creates this service (sync: false means
+          # Render won't overwrite whatever you set manually).
+          - key: APP_KEY
+            sync: false
+          - key: APP_DEBUG
+            value: "false"
+          # Render only knows the final *.onrender.com URL (or your custom
+          # domain) after the first deploy — set this in the dashboard once
+          # you have it, then redeploy.
+          - key: APP_URL
+            sync: false
+          - key: LOG_CHANNEL
+            value: stderr
+          - key: LOG_LEVEL
+            value: info
+          - key: DB_CONNECTION
+            value: pgsql
+          - key: DB_URL
+            fromDatabase:
+                name: docedit-db
+                property: connectionString
+          - key: SESSION_DRIVER
+            value: database
+          - key: SESSION_SECURE_COOKIE
+            value: "true"
+          - key: CACHE_STORE
+            value: database
+          - key: QUEUE_CONNECTION
+            value: database
+          - key: MAIL_MAILER
+            value: log
+          - key: INERTIA_SSR_ENABLED
+            value: "false"

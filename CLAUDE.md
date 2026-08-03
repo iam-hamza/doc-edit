@@ -270,7 +270,14 @@ implementation — keep entries short and current, remove if they become stale.)
   yet — if one gets added later (e.g. `App\Enums\DocumentPermission`), update
   this note and the migration/casts together so they can't drift.
 
-### Deployment (Railway)
+### Deployment
+- **Currently deploying to Render, not Railway** — Railway's free trial credit
+  ran out mid-project. `railway.json` and the Railway-specific notes below are
+  left in place (harmless, and useful if billing gets added back later), but
+  the active path is `Dockerfile` + `render.yaml`. **Render has no native PHP
+  runtime** (only Node/Python/Ruby/Go/Rust/Elixir are native) — that's *why*
+  there's a `Dockerfile` at all now; Railway's Nixpacks auto-detection doesn't
+  apply on Render.
 - **Database is Postgres in production, SQLite only for local dev.** Neither
   Railway nor Render gives a plain container a persistent disk by default —
   local writes (including `database/database.sqlite`) are wiped on every
@@ -339,6 +346,64 @@ implementation — keep entries short and current, remove if they become stale.)
 - Not automated: `php artisan db:seed` (creates alice/bob/carol demo
   accounts) is NOT part of the start command, because it's not idempotent —
   the seeder inserts fixed emails, so re-running it against an
-  already-seeded DB fails on the unique constraint. Run it once manually via
-  Railway's shell/CLI after the first successful deploy if demo accounts are
-  wanted; don't add it to `railway.json`'s `startCommand`.
+  already-seeded DB fails on the unique constraint. Run it once manually
+  after the first successful deploy if demo accounts are wanted; don't add it
+  to any automated start command.
+
+#### Render specifics (`Dockerfile` + `render.yaml`, current active target)
+- Single-stage Dockerfile (`php:8.3-cli-bookworm` + Node 22 installed
+  alongside), not a Node-build-stage → PHP-runtime-stage split. That's not a
+  style choice — Vite's Wayfinder plugin shells out to
+  `php artisan wayfinder:generate` *during* `npm run build`, so a working PHP
+  app + `vendor/` must already exist before the JS build step runs. A clean
+  multi-stage split (build assets in a Node image, copy into a PHP image)
+  isn't possible without duplicating the whole PHP setup into the Node stage
+  anyway, so one stage was simpler and was what got verified.
+- Extensions installed via `docker-php-ext-install`: `pdo_pgsql mbstring
+  bcmath gd zip intl exif` — this list was derived by running
+  `composer check-platform-reqs` locally (it flagged everything already
+  satisfied except `pdo_pgsql`, which is what this app's actual dependency
+  tree needs; the base `php:8.3-cli` image ships with very little beyond
+  core, unlike this sandbox's full-featured local PHP install).
+- Build-time `APP_KEY` is passed as an `ARG` (scoped to one `RUN` layer, never
+  written as an image `ENV`), set to a fixed placeholder value, purely so
+  anything that boots the framework mid-build (`wayfinder:generate`) has a
+  validly-formatted key. It is **not** the runtime key — Render's real
+  `APP_KEY` env var always takes precedence at container start. Docker's
+  build linter still flags this (`SecretsUsedInArgOrEnv`) purely because the
+  variable is *named* `APP_KEY` — false positive, can't rename it since
+  Laravel's config specifically looks up that exact env var name, and the
+  placeholder value is a fixed, public, non-secret string anyway.
+- `CMD` is the same migrate → config:cache → route:cache → serve chain as the
+  Railway `startCommand`, just wrapped as `["sh", "-c", "..."]` (exec form)
+  instead of shell form, to satisfy Docker's `JSONArgsRecommended` lint.
+- **Do not hardcode a `PORT` env var** in `render.yaml` or the Dockerfile —
+  Render injects its own `PORT` at runtime and expects the container to bind
+  to it. The `CMD`'s `--port=${PORT:-8080}` already handles both cases (uses
+  Render's injected value if present, falls back to 8080 for local
+  `docker run` testing) — adding an explicit `PORT` var would override
+  Render's real assignment and likely break routing to the container.
+- `render.yaml` uses `sync: false` for `APP_KEY` and `APP_URL` (set manually
+  in the Render dashboard after the Blueprint creates the service) rather
+  than Render's `generateValue: true` for `APP_KEY` — deliberately: Render's
+  auto-generated values aren't guaranteed to come out in Laravel's required
+  `base64:<32 bytes>` format, so relying on it risks an
+  "Unsupported cipher or incorrect key length" failure at boot. Generate it
+  yourself with `php artisan key:generate --show` and paste it in.
+- `DB_URL` in `render.yaml` uses `fromDatabase: { name: docedit-db, property:
+  connectionString }` to reference the Postgres service declared in the same
+  Blueprint — same idea as Railway's `${{Postgres.DATABASE_URL}}` reference
+  syntax, different literal syntax per platform.
+- **Fully verified locally before ever touching Render's dashboard**: built
+  the actual Docker image (`docker build`), ran it alongside a real Postgres
+  16 container on a Docker network (mirroring how Render wires a web service
+  to its managed Postgres), and drove it through a real headless-browser
+  session — register (with the app's production-only strict password policy
+  in `AppServiceProvider`: min 12 chars, mixed case, symbols, **and a live
+  HaveIBeenPwned "not compromised" check** — a weak test password like
+  `Password123!` gets silently rejected and redirects back to the register
+  page with no visible error in server logs, which looks like a mystery bug
+  if you don't know that policy exists locally-only-in-production), login,
+  create a document, edit it with the Tiptap toolbar, autosave, hard reload
+  — content persisted exactly, zero console/request errors. Not a
+  theoretical "should work."
