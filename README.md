@@ -69,7 +69,8 @@ vendor/bin/phpunit
 
 ## Live deployment
 
-<!-- TODO: paste the deployed URL here once available -->
-`https://REPLACE_WITH_LIVE_URL`
+Not completed — see `SUBMISSION.md`'s "Deployment status" section for why (Railway trial expired mid-project; the Render replacement — Dockerfile + `render.yaml` — is built and verified locally but the dashboard deploy itself wasn't finished in time) and what's ready to go.
 
-See `ARCHITECTURE.md` for the reasoning behind key decisions and `CLAUDE.md` for detailed implementation conventions.
+## Full submission materials
+
+See `SUBMISSION.md` for test credentials, feature status (working/incomplete/next steps), and the Google Drive folder link. See `ARCHITECTURE.md` for the reasoning behind key decisions and `CLAUDE.md` for detailed implementation conventions.

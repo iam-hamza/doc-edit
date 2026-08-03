@@ -2,7 +2,7 @@
 
 ## Quick links
 
-- **Google Drive folder (all materials):** `<REPLACE_WITH_DRIVE_FOLDER_LINK>`
+- **Google Drive folder (all materials):** https://drive.google.com/drive/folders/1_AIMto02h_MaX3hIzQ00nuN2AuoXmIHt
 - **GitHub repository:** https://github.com/iam-hamza/doc-edit
 - **Live deployment:** Not completed — see "Deployment status" below for why, and what's ready to go instead.
 
